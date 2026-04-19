@@ -1,21 +1,27 @@
-pandas
-beautifulsoup4
-scikit-learn
-lxml
-numpy
-scipy
-streamlit
-sentence-transformers
-matplotlib
-seaborn
-langchain
-langchain-community
-langchain-openai
-langchain-google-genai
-langgraph
-pydantic
-langchain-groq
-plotly
-langchain-chroma
-langchain-huggingface
-langgraph-checkpoint-sqlite
+pandas >= 2.0.0
+beautifulsoup4 >= 4.12.0
+scikit-learn >= 1.4.0
+lxml >= 5.1.0
+numpy >= 1.24.0
+scipy >= 1.10.0
+streamlit >= 1.30.0
+sentence-transformers >= 2.5.0
+matplotlib >= 3.8.0
+seaborn >= 0.13.0
+langchain >= 0.1.0
+langchain-community >= 0.0.30
+langchain-openai >= 0.1.0
+langchain-google-genai >= 1.0.0
+langgraph >= 0.0.30
+pydantic >= 2.6.0
+langchain-groq >= 0.1.0
+plotly >= 5.19.0
+langchain-chroma >= 0.1.0
+langchain-huggingface >= 0.0.1
+langgraph-checkpoint-sqlite >= 1.0.0
+# Core fixing for Streamlit deployment
+protobuf >= 4.25.0
+opentelemetry-api >= 1.23.0
+opentelemetry-sdk >= 1.23.0
+opentelemetry-exporter-otlp-proto-grpc >= 1.23.0
+chromadb >= 0.4.24

@@ -3,6 +3,10 @@ import pandas as pd
 import os
 import joblib
 import sys
+
+# FORCE PROTOBUF TO USE THE PYTHON IMPLEMENTATION
+# This must be done as early as possible.
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
