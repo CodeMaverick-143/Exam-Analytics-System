@@ -15,3 +15,7 @@ langchain-google-genai
 langgraph
 pydantic
 langchain-groq
+plotly
+langchain-chroma
+langchain-huggingface
+langgraph-checkpoint-sqlite

@@ -16,13 +16,19 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import traceback
 
 try:
-    from src.ai_engine import run_ai_analysis
-except ImportError:
+    from src.ai_engine import run_ai_analysis, judge_answer, shift_difficulty
+    from src.knowledge_base import get_recommendations
+    import_error = None
+except ImportError as e:
     run_ai_analysis = None
+    judge_answer = None
+    shift_difficulty = None
+    get_recommendations = None
+    import_error = str(e)
 
 st.set_page_config(
     page_title="Exam Analytics Pro",
-    page_icon="https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/zap.svg",
+    page_icon="https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/layers.svg",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -30,68 +36,91 @@ st.set_page_config(
 # --- CUSTOM CSS FOR PREMIUM AESTHETIC ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
     
     :root {
-        --primary: #58a6ff;
-        --secondary: #238636;
-        --bg-dark: #0d1117;
-        --card-bg: #161b22;
-        --border-color: #30363d;
-    }
-    
-    .main {
-        background-color: var(--bg-dark);
-        color: #c9d1d9;
-        font-family: 'Inter', sans-serif;
+        --bg-color: #0f172a;
+        --card-bg: rgba(30, 41, 59, 0.7);
+        --accent-blue: #38bdf8;
+        --accent-emerald: #10b981;
+        --text-main: #f1f5f9;
+        --text-muted: #94a3b8;
+        --border: rgba(255, 255, 255, 0.1);
     }
     
     .stApp {
-        background-color: var(--bg-dark);
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        font-family: 'Inter', sans-serif;
     }
     
     h1, h2, h3 {
-        color: var(--primary);
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Space Grotesk', sans-serif;
         font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text-main) !important;
     }
     
-    .stMetric {
-        background-color: var(--card-bg);
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid var(--border-color);
+    /* Custom Card Style */
+    .metric-card {
+        background: var(--card-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
     }
     
-    .stSidebar {
-        background-color: #010409 !important;
-        border-right: 1px solid var(--border-color);
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(56, 189, 248, 0.3);
     }
-    
+
     .stButton>button {
-        width: 100%;
-        background-color: var(--secondary);
+        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
         color: white;
         border: none;
-        border-radius: 6px;
-        padding: 10px;
+        border-radius: 8px;
         font-weight: 600;
+        padding: 0.6rem 1rem;
         transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     
     .stButton>button:hover {
-        background-color: #2ea043;
-        box-shadow: 0 0 15px rgba(35, 134, 54, 0.4);
+        opacity: 0.9;
+        box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
     }
     
-    .prediction-card {
-        background-color: var(--card-bg);
-        padding: 20px;
-        border-radius: 12px;
-        border-left: 5px solid var(--primary);
-        margin-bottom: 20px;
+    .stSidebar {
+        background-color: #020617 !important;
+        border-right: 1px solid var(--border);
     }
     
+    /* Remove default metric styling */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: var(--accent-blue) !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        font-size: 0.875rem !important;
+        color: var(--text-muted) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .prediction-panel {
+        background: rgba(16, 185, 129, 0.05);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
     footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
@@ -172,7 +201,7 @@ with st.sidebar:
     st.write("---")
     
     page = st.radio("Navigation", 
-                   ["Dashboard", "Model Training", "Documentation"],
+                   ["Dashboard", "Practice Lab", "Model Training", "Documentation"],
                    label_visibility="collapsed")
     
     st.write("---")
@@ -215,13 +244,17 @@ if page == "Dashboard":
             st.error("Uploaded CSV missing required columns ('question' or 'title' and 'body').")
             st.stop()
         
-        # 1. Metric Overview
-        st.subheader("Data Overview")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Rows Found", f"{len(df):,}")
-        m2.metric("Avg Question Length", f"{int(df['question_length'].mean())} chars")
-        m3.metric("Max Tags", f"{int(df['tag_count'].max())}")
-        m4.metric("Avg Score", f"{df['score'].mean():.1f}")
+        # 1. Insights Ribbon
+        st.markdown('<div style="margin-top: 1rem;"></div>', unsafe_allow_html=True)
+        cols = st.columns(4)
+        with cols[0]:
+            st.metric("Total Records", f"{len(df):,}")
+        with cols[1]:
+            st.metric("Mean Text Length", f"{int(df['question_length'].mean())}")
+        with cols[2]:
+            st.metric("Peak Tag Density", f"{int(df['tag_count'].max())}")
+        with cols[3]:
+            st.metric("Aggregate Score", f"{df['score'].mean():.1f}")
         
         st.write("---")
         
@@ -261,44 +294,56 @@ if page == "Dashboard":
                 
                 with res_col2:
                     st.write("### Difficulty Distribution")
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    fig.patch.set_facecolor('#0d1117')
-                    ax.set_facecolor('#161b22')
-                    sns.countplot(data=df, x='predicted_difficulty', 
-                                hue='predicted_difficulty',
-                                legend=False,
-                                order=["Easy", "Medium", "Hard"],
-                                palette=['#3fb950', '#d29922', '#ff7b72'], ax=ax)
-                    plt.title("Classification Distribution", color='white', pad=20)
-                    ax.tick_params(colors='white')
-                    for spine in ax.spines.values(): spine.set_color('#30363d')
-                    st.pyplot(fig)
+                    import plotly.express as px
+                    
+                    category_orders = {"predicted_difficulty": ["Easy", "Medium", "Hard"]}
+                    color_map = {"Easy": "#10b981", "Medium": "#f59e0b", "Hard": "#ef4444"}
+                    
+                    fig = px.histogram(df, x="predicted_difficulty", 
+                                     color="predicted_difficulty",
+                                     category_orders=category_orders,
+                                     color_discrete_map=color_map,
+                                     template="plotly_dark")
+                    
+                    fig.update_layout(
+                        showlegend=False,
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        xaxis_title="",
+                        yaxis_title="Count"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
 
                 # Advanced EDA
                 st.write("---")
                 st.write("### Advanced Insights")
                 
                 st.write("#### Question Length vs Difficulty")
-                fig2, ax2 = plt.subplots(figsize=(10, 5))
-                fig2.patch.set_facecolor('#0d1117')
-                ax2.set_facecolor('#161b22')
-                sns.boxplot(data=df, x='predicted_difficulty', y='question_length', 
-                           hue='predicted_difficulty',
-                           legend=False,
-                           order=["Easy", "Medium", "Hard"],
-                           palette='viridis', ax=ax2)
-                ax2.tick_params(colors='white')
-                plt.ylabel("Character Count", color='white')
-                st.pyplot(fig2)
+                fig2 = px.box(df, x="predicted_difficulty", y="question_length",
+                            color="predicted_difficulty",
+                            category_orders={"predicted_difficulty": ["Easy", "Medium", "Hard"]},
+                            color_discrete_map={"Easy": "#10b981", "Medium": "#f59e0b", "Hard": "#ef4444"},
+                            template="plotly_dark",
+                            points="all")
+                
+                fig2.update_layout(
+                    showlegend=False,
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    yaxis_title="Character Count",
+                    xaxis_title=""
+                )
+                st.plotly_chart(fig2, use_container_width=True)
 
                 # AI Integration Point
                 if run_ai_analysis and api_key:
                     st.write("---")
-                    st.write("### 🤖 AI Agentic Insights (LangGraph)")
+                    st.write("### AI Agentic Analysis")
                     
                     # Analyze first few questions for demo
                     sample_q = df.iloc[0]['question']
-                    if st.button("Generate AI Reasoning for Top Question"):
+                    if st.button("Generate Expert Assessment"):
                         if df.empty:
                             st.warning("No data found to analyze.")
                         else:
@@ -323,8 +368,8 @@ if page == "Dashboard":
                                     )
                                     
                                     st.markdown(f"""
-                                    <div style="background-color: #1c2128; border-radius: 10px; padding: 20px; border: 1px solid #30363d;">
-                                        <h4 style="color: #58a6ff;">Step-by-Step Reasoning</h4>
+                                    <div style="background-color: #1e293b; border-radius: 10px; padding: 20px; border: 1px solid var(--border);">
+                                        <h4 style="color: var(--accent-blue);">Step-by-Step Reasoning</h4>
                                         <p><b>1. ML Prediction Node:</b> {result.get('ml_prediction', 'N/A')}</p>
                                         <p><b>2. LLM Analysis Node:</b> Done</p>
                                         <p><b>3. Synthesis Node:</b> Complete</p>
@@ -332,11 +377,91 @@ if page == "Dashboard":
                                     """, unsafe_allow_html=True)
                                     
                                     st.info(result.get('final_verdict', "Analysis complete but no verdict returned."))
+                                    
+                                    # Specific HITL Approval Panel
+                                    if result.get('approval_needed'):
+                                        st.markdown(f"""
+                                        <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 20px; margin-top: 20px;">
+                                            <h4 style="color: #ef4444; margin-top: 0;">Expert Review Required</h4>
+                                            <p style="color: #fca5a5; font-size: 0.9rem;">
+                                                The AI system has detected a potential discrepancy between the ML quantitative model and the qualitative agentic analysis. 
+                                                Manual verification of this item is highly recommended.
+                                            </p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
                                 except Exception as e:
                                     st.error(f"AI Analysis Failed: {str(e)}")
                                     st.code(traceback.format_exc())
                 elif not api_key:
-                    st.info("💡 Tip: Add an API Key in the sidebar to enable **AI Agentic Analytics** powered by LangGraph.")
+                    st.info("Tip: Add an API Key in the sidebar to enable Expert AI Analytics powered by LangGraph.")
+
+elif page == "Practice Lab":
+    st.markdown('<h1>Practice Lab</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="color:var(--text-muted);">Adaptive preparation based on your performance.</p>', unsafe_allow_html=True)
+    
+    # Session State for Prep
+    if 'prep_level' not in st.session_state:
+        st.session_state['prep_level'] = "Medium"
+    if 'current_prep_q' not in st.session_state:
+        st.session_state['current_prep_q'] = None
+    if 'prep_feedback' not in st.session_state:
+        st.session_state['prep_feedback'] = None
+
+    col1, col2 = st.columns([2, 1])
+    
+    with col2:
+        st.markdown(f"""
+        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 1.5rem; border-radius: 12px; text-align: center;">
+            <p style="text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em; color: var(--accent-blue);">Current Level</p>
+            <h2 style="margin: 0; color: white;">{st.session_state['prep_level']}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        if st.button("Get Next Question", use_container_width=True):
+            recs = get_recommendations(target_difficulty=st.session_state['prep_level'], limit=1)
+            if recs:
+                st.session_state['current_prep_q'] = recs[0]
+                st.session_state['prep_feedback'] = None
+                st.rerun()
+            else:
+                st.warning("No questions found for this level.")
+
+    with col1:
+        if st.session_state['current_prep_q']:
+            q_text = st.session_state['current_prep_q']
+            st.markdown(f"""
+            <div style="background: rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 2rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+                {q_text}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.write("")
+            user_input = st.text_area("Your response:", placeholder="Explain your answer or provide the code...")
+            
+            if st.button("Submit Response", type="primary"):
+                if not api_key:
+                    st.error("Please enter an API Key in the sidebar to use AI-judging.")
+                else:
+                    with st.spinner("AI is evaluating your response..."):
+                        feedback = judge_answer(q_text, user_input, api_key)
+                        st.session_state['prep_feedback'] = feedback
+                        
+                        # Adaptive scaling
+                        is_correct = "[CORRECT]" in feedback.upper()
+                        old_level = st.session_state['prep_level']
+                        st.session_state['prep_level'] = shift_difficulty(old_level, is_correct)
+                        st.rerun()
+        else:
+            st.info("Click 'Get Next Question' to start your session.")
+
+        if st.session_state['prep_feedback']:
+            st.markdown("### Feedback & Assessment")
+            res = st.session_state['prep_feedback']
+            if "[CORRECT]" in res.upper():
+                st.success(res.replace("[CORRECT]", "✓ CORRECT"))
+            else:
+                st.error(res.replace("[INCORRECT]", "✗ INCORRECT"))
 
 elif page == "Model Training":
     st.markdown('<h1>Model Training Pipeline</h1>', unsafe_allow_html=True)
@@ -364,10 +489,10 @@ elif page == "Model Training":
     
     train_col1, train_col2 = st.columns([1, 3])
     with train_col1:
-        if st.button("Finalize & Train"):
-            st.warning("Training on 1M rows may take 5-10 minutes.")
+        if st.button("Initialize Training"):
+            st.warning("Training on large datasets may take several minutes.")
             st.code("python src/model_train.py")
-            st.info("System redirected logs to terminal. Check your console.")
+            st.info("Execution logs directed to system console.")
     
     with train_col2:
         st.write("#### Training Checklist")
@@ -393,14 +518,24 @@ elif page == "Documentation":
         
     with tabs[1]:
         st.write("#### System Pipeline")
-        st.mermaid("""
-        graph TD
-            A[Raw Dataset] -->|data_prep.py| B[Processed Data]
-            B -->|model_train.py| C[Trained Models]
-            C -->|app.py| D[Dashboard UI]
-            E[User CSV] -->|Upload| D
-            D -->|Predict| F[Final Difficulty Report]
-        """)
+        mermaid_code = """graph TD
+    A[Raw Dataset] -->|data_prep.py| B[Processed Data]
+    B -->|model_train.py| C[Trained Models]
+    C -->|app.py| D[Dashboard UI]
+    E[User CSV] -->|Upload| D
+    D -->|Predict| F[Final Difficulty Report]"""
+        st.components.v1.html(
+            f"""
+            <div class="mermaid" style="background-color: transparent;">
+                {mermaid_code}
+            </div>
+            <script type="module">
+                import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+                mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});
+            </script>
+            """,
+            height=600,
+        )
         
     with tabs[2]:
         st.markdown("""
@@ -416,4 +551,4 @@ elif page == "Documentation":
         """)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Exam Analytics Pro v1.2 (Milestone 1)")
+st.sidebar.caption("System Version 1.2.0 • Phase 1 Operation")

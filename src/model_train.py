@@ -116,5 +116,6 @@ if __name__ == "__main__":
     
     joblib.dump(lr_model, os.path.join(MODELS_DIR, "lr_model.joblib"))
     joblib.dump(dt_model, os.path.join(MODELS_DIR, "dt_model.joblib"))
+    joblib.dump(scaler, os.path.join(MODELS_DIR, "scaler.joblib"))
     
     print(f"Models saved successfully to: {MODELS_DIR}")
