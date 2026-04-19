@@ -136,6 +136,16 @@ def get_retriever(search_type="standard"):
         embedding_function=embeddings
     )
     
+    # Check if empty - if so, initialize
+    try:
+        count = vector_store._collection.count()
+        if count == 0:
+            print("Knowledge Base is empty. Initializing...")
+            vector_store = initialize_kb()
+    except Exception:
+        print("Knowledge Base DIR not found or inaccessible. Initializing...")
+        vector_store = initialize_kb()
+    
     search_filter = {"type": search_type}
     return vector_store.as_retriever(
         search_kwargs={"k": 3, "filter": search_filter}
@@ -152,6 +162,16 @@ def get_recommendations(target_difficulty="Medium", limit=3):
         persist_directory=KB_DIR,
         embedding_function=embeddings
     )
+    
+    # Check if empty - if so, initialize
+    try:
+        count = vector_store._collection.count()
+        if count == 0:
+            print("Knowledge Base is empty. Initializing...")
+            vector_store = initialize_kb()
+    except Exception:
+        print("Knowledge Base missing. Initializing...")
+        vector_store = initialize_kb()
     
     # Filter by difficulty for recommendation
     results = vector_store.get(where={"title": f"Gold Standard: {target_difficulty}"})

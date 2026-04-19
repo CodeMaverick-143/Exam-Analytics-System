@@ -172,8 +172,11 @@ def preprocess_features(df):
     else:
         df["tag_count"] = 0
     
+    # Ensure score exists and is numeric
     if "score" not in df.columns:
         df["score"] = 0
+    else:
+        df["score"] = pd.to_numeric(df["score"], errors='coerce').fillna(0)
             
     return df
 
@@ -260,28 +263,34 @@ if page == "Dashboard":
         with cols[3]:
             st.metric("Aggregate Score", f"{df['score'].mean():.1f}")
         
-        st.write("---")
-        
         # 2. Prediction Section
         col_ctrl1, col_ctrl2 = st.columns([1, 2])
         with col_ctrl1:
             model_name = st.selectbox("Select Classification Engine", ["Logistic Regression (Standard)", "Decision Tree (Deep Inspect)"])
+        
         if st.button("Analyze Difficulty"):
             with st.spinner("Crunching vectors..."):
-                if use_mock:
-                    df['predicted_difficulty'] = np.random.choice(["Easy", "Medium", "Hard"], size=len(df))
-                else:
-                    target_model = lr_model if "Logistic" in model_name else dt_model
-                    preds, probs = predict_difficulty_with_probs(df, vectorizer, target_model)
-                    df['predicted_difficulty'] = preds
-                
-                st.session_state['analyzed_df'] = df
-                st.session_state['analysis_done'] = True
+                try:
+                    if use_mock:
+                        df['predicted_difficulty'] = np.random.choice(["Easy", "Medium", "Hard"], size=len(df))
+                    else:
+                        target_model = lr_model if "Logistic" in model_name else dt_model
+                        preds, probs = predict_difficulty_with_probs(df, vectorizer, target_model)
+                        if preds is None:
+                            st.error("Model prediction failed. Please check your CSV format.")
+                        else:
+                            df['predicted_difficulty'] = preds
+                    
+                    st.session_state['analyzed_df'] = df
+                    st.session_state['analysis_done'] = True
+                    st.success("Analysis Complete!")
+                except Exception as e:
+                    st.error(f"Analysis Error: {str(e)}")
+                    st.code(traceback.format_exc())
             
-        if st.session_state.get('analysis_done'):
+        if st.session_state.get('analysis_done') and st.session_state.get('analyzed_df') is not None:
                 df = st.session_state['analyzed_df']
                 # Visual Results
-                st.success("Analysis Complete!")
                 
                 res_col1, res_col2 = st.columns([3, 2])
                 
