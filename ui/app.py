@@ -518,23 +518,29 @@ elif page == "Documentation":
         
     with tabs[1]:
         st.write("#### System Pipeline")
-        mermaid_code = """graph TD
-    A[Raw Dataset] -->|data_prep.py| B[Processed Data]
-    B -->|model_train.py| C[Trained Models]
-    C -->|app.py| D[Dashboard UI]
-    E[User CSV] -->|Upload| D
-    D -->|Predict| F[Final Difficulty Report]"""
+        mermaid_code = """
+flowchart TD
+    A["Raw Dataset"] -->|"data_prep.py"| B["Processed Data"]
+    B -->|"model_train.py"| C["Trained Models"]
+    C -->|"app.py"| D["Dashboard UI"]
+    E["User CSV"] -->|"Upload"| D
+    D -->|"Predict"| F["Final Difficulty Report"]
+"""
         st.components.v1.html(
             f"""
-            <div class="mermaid" style="background-color: transparent;">
+            <div class="mermaid">
                 {mermaid_code}
             </div>
             <script type="module">
                 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-                mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});
+                mermaid.initialize({{ 
+                    startOnLoad: true, 
+                    theme: 'dark',
+                    securityLevel: 'loose',
+                }});
             </script>
             """,
-            height=600,
+            height=450,
         )
         
     with tabs[2]:
